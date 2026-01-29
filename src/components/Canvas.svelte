@@ -16,8 +16,10 @@
   let isDrawing = $state(false);
   let isPanning = $state(false);
   let isDragging = $state(false);
+  let isSelecting = $state(false);
   let lastMouse = $state({ x: 0, y: 0 });
   let dragStart = $state({ x: 0, y: 0 });
+  let selectionBox = $state<{ x: number; y: number; width: number; height: number } | null>(null);
   let currentElement = $state<DrawElement | null>(null);
 
   // Binding snap state
@@ -60,6 +62,7 @@
     startSnapTarget;
     endSnapTarget;
     showHitAreas;
+    selectionBox;
     draw();
   });
 
@@ -106,6 +109,17 @@
       for (const element of elementsState.elements) {
         drawHitArea(element);
       }
+    }
+
+    // Draw selection box
+    if (selectionBox && selectionBox.width > 0 && selectionBox.height > 0) {
+      ctx.fillStyle = 'rgba(14, 165, 233, 0.1)';
+      ctx.fillRect(selectionBox.x, selectionBox.y, selectionBox.width, selectionBox.height);
+      ctx.strokeStyle = '#0ea5e9';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeRect(selectionBox.x, selectionBox.y, selectionBox.width, selectionBox.height);
+      ctx.setLineDash([]);
     }
   }
 
@@ -222,7 +236,13 @@
         isDragging = true;
         dragStart = { x: point.x, y: point.y };
       } else {
-        elementsState.clearSelection();
+        // Start selection box drag
+        if (!e.ctrlKey && !e.metaKey) {
+          elementsState.clearSelection();
+        }
+        isSelecting = true;
+        dragStart = { x: point.x, y: point.y };
+        selectionBox = { x: point.x, y: point.y, width: 0, height: 0 };
       }
       return;
     }
@@ -261,6 +281,28 @@
       const dy = e.clientY - lastMouse.y;
       canvasState.pan(dx, dy);
       lastMouse = { x: e.clientX, y: e.clientY };
+      return;
+    }
+
+    // Selection box drag
+    if (isSelecting && selectionBox) {
+      const point = getCanvasPoint(e);
+      selectionBox = {
+        x: Math.min(dragStart.x, point.x),
+        y: Math.min(dragStart.y, point.y),
+        width: Math.abs(point.x - dragStart.x),
+        height: Math.abs(point.y - dragStart.y),
+      };
+
+      // Select elements in real-time as we drag
+      const selectedIds: string[] = [];
+      for (const el of elementsState.elements) {
+        const bounds = getElementBounds(el);
+        if (boxesIntersect(selectionBox, bounds)) {
+          selectedIds.push(el.id);
+        }
+      }
+      elementsState.selectMultiple(selectedIds);
       return;
     }
 
@@ -336,6 +378,13 @@
   function onMouseUp() {
     isPanning = false;
     isDragging = false;
+
+    // Finish selection box
+    if (isSelecting) {
+      isSelecting = false;
+      selectionBox = null;
+      return;
+    }
 
     if (isDrawing && currentElement) {
       // Store end binding for line/arrow
@@ -413,6 +462,18 @@
       }
     }
     return null;
+  }
+
+  function boxesIntersect(
+    a: { x: number; y: number; width: number; height: number },
+    b: { minX: number; minY: number; maxX: number; maxY: number }
+  ): boolean {
+    return !(
+      a.x + a.width < b.minX ||
+      a.x > b.maxX ||
+      a.y + a.height < b.minY ||
+      a.y > b.maxY
+    );
   }
 
   function onWheel(e: WheelEvent) {

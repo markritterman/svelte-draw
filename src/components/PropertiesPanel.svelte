@@ -19,14 +19,15 @@
   const strokeColors = ['#1e293b', '#dc2626', '#16a34a', '#2563eb', '#d97706', '#000000'];
   const bgColors = ['transparent', '#fee2e2', '#dcfce7', '#dbeafe', '#fef3c7', '#e0f2fe'];
 
-  // Get first selected element for display
+  // Get first selected element for display (shows its properties, changes apply to all)
   let selectedElement = $derived(
-    elementsState.selectedIds.size === 1
+    elementsState.selectedIds.size > 0
       ? elementsState.getElementById([...elementsState.selectedIds][0])
       : null
   );
 
   let hasSelection = $derived(elementsState.selectedIds.size > 0);
+  let selectionCount = $derived(elementsState.selectedIds.size);
 
   function updateSelected(changes: Record<string, any>) {
     for (const id of elementsState.selectedIds) {
@@ -74,6 +75,12 @@
 
 {#if hasSelection}
   <div class="fixed top-16 left-4 w-48 bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-xs">
+    {#if selectionCount > 1}
+      <div class="mb-2 pb-2 border-b border-gray-100 text-gray-500">
+        {selectionCount} elements selected
+      </div>
+    {/if}
+
     <!-- Stroke Color -->
     <div class="mb-3">
       <div class="text-gray-500 mb-1.5">Stroke</div>

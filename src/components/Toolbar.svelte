@@ -11,7 +11,6 @@
     ArrowUpRight,
     Pencil,
     Type,
-    PenLine,
   } from 'lucide-svelte';
 
   const tools: { id: Tool; label: string; shortcut: string; icon: typeof MousePointer2 }[] = [
@@ -42,19 +41,4 @@
     </button>
   {/each}
 
-  <!-- Separator -->
-  <div class="w-px bg-gray-200 mx-1"></div>
-
-  <!-- Rough toggle -->
-  <button
-    class="w-9 h-9 flex items-center justify-center rounded transition-colors"
-    class:bg-amber-100={toolsState.roughEnabled}
-    class:text-amber-700={toolsState.roughEnabled}
-    class:text-gray-400={!toolsState.roughEnabled}
-    class:hover:bg-gray-100={!toolsState.roughEnabled}
-    onclick={() => toolsState.toggleRough()}
-    title="Rough lines ({toolsState.roughEnabled ? 'ON' : 'OFF'})"
-  >
-    <PenLine size={18} />
-  </button>
-</div>
+  </div>
