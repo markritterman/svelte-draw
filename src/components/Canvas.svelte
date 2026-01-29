@@ -17,6 +17,7 @@
   let isPanning = $state(false);
   let isDragging = $state(false);
   let isSelecting = $state(false);
+  let isDraggingEndpoint = $state<'start' | 'end' | null>(null);
   let lastMouse = $state({ x: 0, y: 0 });
   let dragStart = $state({ x: 0, y: 0 });
   let selectionBox = $state<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -228,6 +229,19 @@
 
     // Selection tool
     if (tool === 'selection') {
+      // First check if clicking on an endpoint handle of a selected line/arrow
+      for (const id of elementsState.selectedIds) {
+        const el = elementsState.getElementById(id);
+        if (el && (el.type === 'line' || el.type === 'arrow')) {
+          const endpoint = hitTestEndpoint(point, el);
+          if (endpoint) {
+            isDraggingEndpoint = endpoint;
+            dragStart = { x: point.x, y: point.y };
+            return;
+          }
+        }
+      }
+
       const hit = hitTest(point);
       if (hit) {
         if (!elementsState.selectedIds.has(hit.id)) {
@@ -281,6 +295,55 @@
       const dy = e.clientY - lastMouse.y;
       canvasState.pan(dx, dy);
       lastMouse = { x: e.clientX, y: e.clientY };
+      return;
+    }
+
+    // Endpoint handle drag for lines/arrows
+    if (isDraggingEndpoint) {
+      const point = getCanvasPoint(e);
+
+      for (const id of elementsState.selectedIds) {
+        const el = elementsState.getElementById(id);
+        if (el && (el.type === 'line' || el.type === 'arrow')) {
+          const lineEl = el as any;
+          const points = [...lineEl.points];
+
+          if (isDraggingEndpoint === 'start') {
+            // Moving start point: adjust element position and recalculate relative points
+            const oldStart = { x: el.x + points[0].x, y: el.y + points[0].y };
+            const newStart = point;
+
+            // Update element origin to new start position
+            const dx = newStart.x - oldStart.x;
+            const dy = newStart.y - oldStart.y;
+
+            // Shift all points relative to the new origin
+            for (let i = 1; i < points.length; i++) {
+              points[i] = { x: points[i].x - dx, y: points[i].y - dy };
+            }
+            points[0] = { x: 0, y: 0 };
+
+            elementsState.update(id, {
+              x: newStart.x,
+              y: newStart.y,
+              points,
+              startBinding: null, // Clear binding when manually moved
+            });
+          } else if (isDraggingEndpoint === 'end') {
+            // Moving end point: just update the last point relative to origin
+            const lastIdx = points.length - 1;
+            points[lastIdx] = {
+              x: point.x - el.x,
+              y: point.y - el.y,
+            };
+
+            elementsState.update(id, {
+              points,
+              endBinding: null, // Clear binding when manually moved
+            });
+          }
+        }
+      }
       return;
     }
 
@@ -378,6 +441,7 @@
   function onMouseUp() {
     isPanning = false;
     isDragging = false;
+    isDraggingEndpoint = null;
 
     // Finish selection box
     if (isSelecting) {
@@ -464,6 +528,31 @@
     return null;
   }
 
+  // Check if point is near a line/arrow endpoint handle
+  function hitTestEndpoint(point: Point, element: DrawElement): 'start' | 'end' | null {
+    if (element.type !== 'line' && element.type !== 'arrow') return null;
+
+    const lineEl = element as any;
+    if (!lineEl.points || lineEl.points.length < 2) return null;
+
+    const handleRadius = 8;
+    const startPoint = {
+      x: element.x + lineEl.points[0].x,
+      y: element.y + lineEl.points[0].y,
+    };
+    const endPoint = {
+      x: element.x + lineEl.points[lineEl.points.length - 1].x,
+      y: element.y + lineEl.points[lineEl.points.length - 1].y,
+    };
+
+    const distToStart = Math.hypot(point.x - startPoint.x, point.y - startPoint.y);
+    const distToEnd = Math.hypot(point.x - endPoint.x, point.y - endPoint.y);
+
+    if (distToStart <= handleRadius) return 'start';
+    if (distToEnd <= handleRadius) return 'end';
+    return null;
+  }
+
   function boxesIntersect(
     a: { x: number; y: number; width: number; height: number },
     b: { minX: number; minY: number; maxX: number; maxY: number }
@@ -517,6 +606,7 @@
   function getCursor() {
     if (isPanning) return 'grabbing';
     if (isDragging) return 'move';
+    if (isDraggingEndpoint) return 'crosshair';
     const tool = toolsState.activeTool;
     if (tool === 'hand') return 'grab';
     if (tool === 'selection') return 'default';

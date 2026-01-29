@@ -176,17 +176,27 @@ export function renderSelectionBox(ctx: CanvasRenderingContext2D, element: DrawE
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Draw handles at start and end points only
+      // Draw handles at start and end points
       const startPoint = points[0];
       const endPoint = points[points.length - 1];
 
-      // Draw circular handles for line endpoints
-      for (const point of [startPoint, endPoint]) {
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, handleSize / 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
+      // Start handle - green circle
+      ctx.fillStyle = '#dcfce7';
+      ctx.strokeStyle = '#16a34a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(startPoint.x, startPoint.y, handleSize / 2 + 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // End handle - blue circle
+      ctx.fillStyle = '#dbeafe';
+      ctx.strokeStyle = '#2563eb';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(endPoint.x, endPoint.y, handleSize / 2 + 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
     }
     return;
   }
