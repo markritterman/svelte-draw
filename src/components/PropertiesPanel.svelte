@@ -17,7 +17,10 @@
     ChevronsUp,
     Circle,
     X,
+    Link,
+    Unlink,
   } from 'lucide-svelte';
+  import type { ArrowElement, LineElement } from '../types/element';
 
   const strokeColors = ['#1e293b', '#dc2626', '#16a34a', '#2563eb', '#d97706', '#000000'];
   const bgColors = ['transparent', '#fee2e2', '#dcfce7', '#dbeafe', '#fef3c7', '#e0f2fe'];
@@ -32,6 +35,23 @@
   let hasSelection = $derived(elementsState.selectedIds.size > 0);
   let selectionCount = $derived(elementsState.selectedIds.size);
   let hasArrowSelected = $derived(selectedElement?.type === 'arrow');
+  let hasLineOrArrowSelected = $derived(selectedElement?.type === 'arrow' || selectedElement?.type === 'line');
+
+  // Check if selected arrow/line has bindings
+  let startBinding = $derived(
+    hasLineOrArrowSelected ? (selectedElement as ArrowElement | LineElement).startBinding : null
+  );
+  let endBinding = $derived(
+    hasLineOrArrowSelected ? (selectedElement as ArrowElement | LineElement).endBinding : null
+  );
+  let hasAnyBinding = $derived(startBinding !== null || endBinding !== null);
+
+  // Get the name/type of bound element
+  function getBoundElementLabel(elementId: string): string {
+    const el = elementsState.getElementById(elementId);
+    if (!el) return 'Unknown';
+    return el.type.charAt(0).toUpperCase() + el.type.slice(1);
+  }
 
   type ArrowheadType = 'arrow' | 'bar' | 'dot' | null;
 
@@ -256,6 +276,48 @@
               {/each}
             </div>
           </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Bindings (for arrows and lines) -->
+    {#if hasLineOrArrowSelected && hasAnyBinding}
+      <div class="mb-3">
+        <div class="text-gray-500 mb-1.5 flex items-center gap-1">
+          <Link size={12} />
+          Bindings
+        </div>
+        <div class="space-y-1.5">
+          {#if startBinding}
+            <div class="flex items-center justify-between bg-sky-50 rounded px-2 py-1.5 border border-sky-200">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] text-sky-600 font-medium">Start</span>
+                <span class="text-gray-600">{getBoundElementLabel(startBinding.elementId)}</span>
+              </div>
+              <button
+                class="p-0.5 rounded hover:bg-sky-200 text-sky-600 transition-colors"
+                onclick={() => updateSelected({ startBinding: null })}
+                title="Unpin start"
+              >
+                <Unlink size={12} />
+              </button>
+            </div>
+          {/if}
+          {#if endBinding}
+            <div class="flex items-center justify-between bg-sky-50 rounded px-2 py-1.5 border border-sky-200">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] text-sky-600 font-medium">End</span>
+                <span class="text-gray-600">{getBoundElementLabel(endBinding.elementId)}</span>
+              </div>
+              <button
+                class="p-0.5 rounded hover:bg-sky-200 text-sky-600 transition-colors"
+                onclick={() => updateSelected({ endBinding: null })}
+                title="Unpin end"
+              >
+                <Unlink size={12} />
+              </button>
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
