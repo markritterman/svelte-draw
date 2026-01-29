@@ -153,6 +153,45 @@ function drawArrowhead(
 }
 
 export function renderSelectionBox(ctx: CanvasRenderingContext2D, element: DrawElement) {
+  const handleSize = 8;
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#0ea5e9';
+  ctx.lineWidth = 1;
+
+  // For lines and arrows, show endpoint handles instead of bounding box
+  if (element.type === 'line' || element.type === 'arrow') {
+    if (element.points.length >= 2) {
+      const points = element.points.map(p => ({
+        x: element.x + p.x,
+        y: element.y + p.y,
+      }));
+
+      // Draw a light line connecting the handles
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Draw handles at start and end points only
+      const startPoint = points[0];
+      const endPoint = points[points.length - 1];
+
+      // Draw circular handles for line endpoints
+      for (const point of [startPoint, endPoint]) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, handleSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+    return;
+  }
+
+  // For other elements, draw bounding box with corner handles
   const padding = 5;
   const bounds = getElementBounds(element);
   const x = bounds.minX - padding;
@@ -160,17 +199,11 @@ export function renderSelectionBox(ctx: CanvasRenderingContext2D, element: DrawE
   const w = bounds.width + padding * 2;
   const h = bounds.height + padding * 2;
 
-  ctx.strokeStyle = '#0ea5e9';
-  ctx.lineWidth = 1;
   ctx.setLineDash([5, 5]);
   ctx.strokeRect(x, y, w, h);
   ctx.setLineDash([]);
 
   // Corner handles
-  const handleSize = 8;
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#0ea5e9';
-
   const handles = [
     [x, y],
     [x + w, y],
