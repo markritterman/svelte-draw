@@ -67,10 +67,10 @@ export function renderElement(rc: RoughCanvas, ctx: CanvasRenderingContext2D, el
       if (element.type === 'arrow' && points.length >= 2) {
         const lastIdx = points.length - 1;
         if (element.endArrowhead) {
-          drawArrowhead(ctx, points[lastIdx - 1], points[lastIdx], element.strokeColor, element.strokeWidth);
+          drawArrowhead(ctx, points[lastIdx - 1], points[lastIdx], element.strokeColor, element.strokeWidth, element.endArrowhead);
         }
         if (element.startArrowhead) {
-          drawArrowhead(ctx, points[1], points[0], element.strokeColor, element.strokeWidth);
+          drawArrowhead(ctx, points[1], points[0], element.strokeColor, element.strokeWidth, element.startArrowhead);
         }
       }
       break;
@@ -100,25 +100,56 @@ function drawArrowhead(
   from: [number, number],
   to: [number, number],
   color: string,
-  strokeWidth: number
+  strokeWidth: number,
+  type: 'arrow' | 'bar' | 'dot'
 ) {
-  const headLength = 15 + strokeWidth * 2;
   const angle = Math.atan2(to[1] - from[1], to[0] - from[0]);
 
   ctx.strokeStyle = color;
+  ctx.fillStyle = color;
   ctx.lineWidth = strokeWidth;
-  ctx.beginPath();
-  ctx.moveTo(to[0], to[1]);
-  ctx.lineTo(
-    to[0] - headLength * Math.cos(angle - Math.PI / 6),
-    to[1] - headLength * Math.sin(angle - Math.PI / 6)
-  );
-  ctx.moveTo(to[0], to[1]);
-  ctx.lineTo(
-    to[0] - headLength * Math.cos(angle + Math.PI / 6),
-    to[1] - headLength * Math.sin(angle + Math.PI / 6)
-  );
-  ctx.stroke();
+
+  switch (type) {
+    case 'arrow': {
+      const headLength = 15 + strokeWidth * 2;
+      ctx.beginPath();
+      ctx.moveTo(to[0], to[1]);
+      ctx.lineTo(
+        to[0] - headLength * Math.cos(angle - Math.PI / 6),
+        to[1] - headLength * Math.sin(angle - Math.PI / 6)
+      );
+      ctx.moveTo(to[0], to[1]);
+      ctx.lineTo(
+        to[0] - headLength * Math.cos(angle + Math.PI / 6),
+        to[1] - headLength * Math.sin(angle + Math.PI / 6)
+      );
+      ctx.stroke();
+      break;
+    }
+
+    case 'bar': {
+      const barLength = 10 + strokeWidth * 2;
+      ctx.beginPath();
+      ctx.moveTo(
+        to[0] - barLength * Math.cos(angle - Math.PI / 2),
+        to[1] - barLength * Math.sin(angle - Math.PI / 2)
+      );
+      ctx.lineTo(
+        to[0] + barLength * Math.cos(angle - Math.PI / 2),
+        to[1] + barLength * Math.sin(angle - Math.PI / 2)
+      );
+      ctx.stroke();
+      break;
+    }
+
+    case 'dot': {
+      const radius = 5 + strokeWidth;
+      ctx.beginPath();
+      ctx.arc(to[0], to[1], radius, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+  }
 }
 
 export function renderSelectionBox(ctx: CanvasRenderingContext2D, element: DrawElement) {

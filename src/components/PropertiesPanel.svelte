@@ -8,12 +8,15 @@
     Waves,
     CornerUpRight,
     ArrowRight,
+    ArrowLeft,
     Copy,
     Trash2,
     ChevronDown,
     ChevronUp,
     ChevronsDown,
     ChevronsUp,
+    Circle,
+    X,
   } from 'lucide-svelte';
 
   const strokeColors = ['#1e293b', '#dc2626', '#16a34a', '#2563eb', '#d97706', '#000000'];
@@ -28,6 +31,9 @@
 
   let hasSelection = $derived(elementsState.selectedIds.size > 0);
   let selectionCount = $derived(elementsState.selectedIds.size);
+  let hasArrowSelected = $derived(selectedElement?.type === 'arrow');
+
+  type ArrowheadType = 'arrow' | 'bar' | 'dot' | null;
 
   function updateSelected(changes: Record<string, any>) {
     for (const id of elementsState.selectedIds) {
@@ -188,6 +194,71 @@
         {/each}
       </div>
     </div>
+
+    <!-- Arrowheads (only for arrow type) -->
+    {#if hasArrowSelected}
+      <div class="mb-3">
+        <div class="text-gray-500 mb-1.5">Arrowheads</div>
+        <div class="flex gap-2">
+          <!-- Start arrowhead -->
+          <div class="flex-1">
+            <div class="text-[10px] text-gray-400 mb-1">Start</div>
+            <div class="flex gap-0.5">
+              {#each [null, 'arrow', 'bar', 'dot'] as type}
+                {@const isSelected = (selectedElement?.type === 'arrow' && (selectedElement as any).startArrowhead) === type}
+                <button
+                  class="flex-1 h-6 rounded border flex items-center justify-center transition-all text-[10px]"
+                  class:bg-sky-100={isSelected}
+                  class:border-sky-500={isSelected}
+                  class:border-gray-200={!isSelected}
+                  class:hover:bg-gray-50={!isSelected}
+                  onclick={() => updateSelected({ startArrowhead: type as ArrowheadType })}
+                  title={type ?? 'None'}
+                >
+                  {#if type === null}
+                    <X size={10} />
+                  {:else if type === 'arrow'}
+                    <ArrowLeft size={10} />
+                  {:else if type === 'bar'}
+                    <span class="font-bold">|</span>
+                  {:else if type === 'dot'}
+                    <Circle size={8} class="fill-current" />
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          </div>
+          <!-- End arrowhead -->
+          <div class="flex-1">
+            <div class="text-[10px] text-gray-400 mb-1">End</div>
+            <div class="flex gap-0.5">
+              {#each [null, 'arrow', 'bar', 'dot'] as type}
+                {@const isSelected = (selectedElement?.type === 'arrow' && (selectedElement as any).endArrowhead) === type}
+                <button
+                  class="flex-1 h-6 rounded border flex items-center justify-center transition-all text-[10px]"
+                  class:bg-sky-100={isSelected}
+                  class:border-sky-500={isSelected}
+                  class:border-gray-200={!isSelected}
+                  class:hover:bg-gray-50={!isSelected}
+                  onclick={() => updateSelected({ endArrowhead: type as ArrowheadType })}
+                  title={type ?? 'None'}
+                >
+                  {#if type === null}
+                    <X size={10} />
+                  {:else if type === 'arrow'}
+                    <ArrowRight size={10} />
+                  {:else if type === 'bar'}
+                    <span class="font-bold">|</span>
+                  {:else if type === 'dot'}
+                    <Circle size={8} class="fill-current" />
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
 
     <!-- Opacity -->
     <div class="mb-3">
