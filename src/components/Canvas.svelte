@@ -5,8 +5,9 @@
   import { elementsState } from '../state/elements.svelte';
   import { toolsState } from '../state/tools.svelte';
   import { createElement, type DrawElement, type Point, type Binding } from '../types/element';
-  import { renderElement, renderSelectionBox } from '../lib/render/elements';
-  import { findBindingTarget, getBindingPoint, updateBoundPoints } from '../lib/binding';
+  import { renderElement, renderSelectionBox, renderControlPointHandles, getControlPointPosition, getElbowControlPoints } from '../lib/render/elements';
+  import type { ArrowElement } from '../types/element';
+  import { findBindingTarget, findBindingTargetWithFixed, getBindingPoint, getFixedBindingPoint, updateBoundPoints } from '../lib/binding';
   import { isPointInBounds, isPointNearLine, getElementBounds } from '../lib/bounds';
 
   let canvasEl: HTMLCanvasElement;
@@ -19,6 +20,7 @@
   let isSelecting = $state(false);
   let isDraggingEndpoint = $state<'start' | 'end' | null>(null);
   let endpointDragInfo = $state<{ currentPos: Point; otherEnd: Point } | null>(null);
+  let isDraggingControlPoint = $state<{ elementId: string; index: number } | null>(null);
   let lastMouse = $state({ x: 0, y: 0 });
   let dragStart = $state({ x: 0, y: 0 });
   let selectionBox = $state<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -91,6 +93,8 @@
       // Draw selection box if selected
       if (elementsState.selectedIds.has(element.id)) {
         renderSelectionBox(ctx, element);
+        // Also render control point handles for curved/elbow arrows
+        renderControlPointHandles(ctx, element);
       }
     }
 
@@ -169,10 +173,19 @@
 
   function drawSnapIndicator(target: { element: DrawElement; binding: Binding }, fromPoint: Point, otherEnd: Point) {
     // Calculate where the snap point will be on the shape edge
-    const snapPoint = getBindingPoint(target.element, otherEnd, target.binding.gap);
+    const snapPoint = getBindingPoint(
+      target.element,
+      otherEnd,
+      target.binding.gap,
+      target.binding.fixedPoint
+    );
+
+    // Use different color for fixed point binding (orange) vs dynamic (blue)
+    const isFixed = !!target.binding.fixedPoint;
+    const color = isFixed ? '#f59e0b' : '#0ea5e9';
 
     // Draw glue line from cursor to snap point
-    ctx.strokeStyle = '#0ea5e9';
+    ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
@@ -182,15 +195,34 @@
     ctx.setLineDash([]);
 
     // Draw snap point indicator (where it will land)
-    ctx.fillStyle = '#0ea5e9';
+    ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(snapPoint.x, snapPoint.y, 6, 0, Math.PI * 2);
+
+    if (isFixed) {
+      // Draw a diamond shape for fixed binding
+      ctx.moveTo(snapPoint.x, snapPoint.y - 7);
+      ctx.lineTo(snapPoint.x + 7, snapPoint.y);
+      ctx.lineTo(snapPoint.x, snapPoint.y + 7);
+      ctx.lineTo(snapPoint.x - 7, snapPoint.y);
+      ctx.closePath();
+    } else {
+      // Draw a circle for dynamic binding
+      ctx.arc(snapPoint.x, snapPoint.y, 6, 0, Math.PI * 2);
+    }
     ctx.fill();
 
-    // Draw white inner circle
+    // Draw white inner shape
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(snapPoint.x, snapPoint.y, 3, 0, Math.PI * 2);
+    if (isFixed) {
+      ctx.moveTo(snapPoint.x, snapPoint.y - 3);
+      ctx.lineTo(snapPoint.x + 3, snapPoint.y);
+      ctx.lineTo(snapPoint.x, snapPoint.y + 3);
+      ctx.lineTo(snapPoint.x - 3, snapPoint.y);
+      ctx.closePath();
+    } else {
+      ctx.arc(snapPoint.x, snapPoint.y, 3, 0, Math.PI * 2);
+    }
     ctx.fill();
   }
 
@@ -240,7 +272,20 @@
 
     // Selection tool
     if (tool === 'selection') {
-      // First check if clicking on an endpoint handle of a selected line/arrow
+      // First check if clicking on a control point handle of a selected arrow
+      for (const id of elementsState.selectedIds) {
+        const el = elementsState.getElementById(id);
+        if (el && el.type === 'arrow') {
+          const controlPointHit = hitTestControlPoint(point, el as ArrowElement);
+          if (controlPointHit !== null) {
+            isDraggingControlPoint = { elementId: id, index: controlPointHit };
+            dragStart = { x: point.x, y: point.y };
+            return;
+          }
+        }
+      }
+
+      // Then check if clicking on an endpoint handle of a selected line/arrow
       for (const id of elementsState.selectedIds) {
         const el = elementsState.getElementById(id);
         if (el && (el.type === 'line' || el.type === 'arrow')) {
@@ -309,9 +354,33 @@
       return;
     }
 
+    // Control point drag for curved/elbow arrows
+    if (isDraggingControlPoint) {
+      const point = getCanvasPoint(e);
+      const el = elementsState.getElementById(isDraggingControlPoint.elementId);
+
+      if (el && el.type === 'arrow') {
+        const arrowEl = el as ArrowElement;
+        // Calculate control point position relative to element origin
+        const relativePoint = {
+          x: point.x - el.x,
+          y: point.y - el.y,
+        };
+
+        // Update control points array
+        const controlPoints = [...(arrowEl.controlPoints || [])];
+        controlPoints[isDraggingControlPoint.index] = relativePoint;
+
+        elementsState.update(isDraggingControlPoint.elementId, { controlPoints });
+      }
+      return;
+    }
+
     // Endpoint handle drag for lines/arrows
     if (isDraggingEndpoint) {
       const point = getCanvasPoint(e);
+      const isCtrlHeld = e.ctrlKey || e.metaKey; // Ctrl disables snapping
+      const isAltHeld = e.altKey; // Alt enables fixed point binding
 
       for (const id of elementsState.selectedIds) {
         const el = elementsState.getElementById(id);
@@ -328,7 +397,12 @@
           }
 
           // Check for snap target (for indicator only, don't snap yet)
-          const snapTarget = findBindingTarget(point, elementsState.elements, excludeIds);
+          // Ctrl disables snapping entirely
+          const snapTarget = isCtrlHeld
+            ? null
+            : isAltHeld
+              ? findBindingTargetWithFixed(point, elementsState.elements, excludeIds, true)
+              : findBindingTarget(point, elementsState.elements, excludeIds);
 
           // Calculate the other end position for snap point calculation
           const otherEnd = isDraggingEndpoint === 'start'
@@ -482,6 +556,12 @@
     isPanning = false;
     isDragging = false;
 
+    // Finish control point drag
+    if (isDraggingControlPoint) {
+      isDraggingControlPoint = null;
+      return;
+    }
+
     // Finish endpoint drag - apply snap if near a shape
     if (isDraggingEndpoint) {
       const snapTarget = isDraggingEndpoint === 'start' ? startSnapTarget : endSnapTarget;
@@ -499,7 +579,12 @@
               ? { x: el.x + points[points.length - 1].x, y: el.y + points[points.length - 1].y }
               : { x: el.x, y: el.y };
 
-            const snappedPoint = getBindingPoint(snapTarget.element, otherEnd, snapTarget.binding.gap);
+            const snappedPoint = getBindingPoint(
+              snapTarget.element,
+              otherEnd,
+              snapTarget.binding.gap,
+              snapTarget.binding.fixedPoint
+            );
 
             if (isDraggingEndpoint === 'start') {
               const dx = snappedPoint.x - el.x;
@@ -625,6 +710,28 @@
     return null;
   }
 
+  // Check if point is near a control point handle for curved/elbow arrows
+  function hitTestControlPoint(point: Point, element: ArrowElement): number | null {
+    const handleRadius = 8;
+
+    if (element.lineType === 'curved') {
+      const cpPos = getControlPointPosition(element);
+      if (cpPos) {
+        const dist = Math.hypot(point.x - cpPos.x, point.y - cpPos.y);
+        if (dist <= handleRadius) return 0;
+      }
+    } else if (element.lineType === 'elbow') {
+      const elbowCPs = getElbowControlPoints(element);
+      for (let i = 0; i < elbowCPs.length; i++) {
+        const cp = elbowCPs[i];
+        const dist = Math.hypot(point.x - cp.x, point.y - cp.y);
+        if (dist <= handleRadius) return i;
+      }
+    }
+
+    return null;
+  }
+
   // Check if point is near a line/arrow endpoint handle
   function hitTestEndpoint(point: Point, element: DrawElement): 'start' | 'end' | null {
     if (element.type !== 'line' && element.type !== 'arrow') return null;
@@ -704,6 +811,7 @@
     if (isPanning) return 'grabbing';
     if (isDragging) return 'move';
     if (isDraggingEndpoint) return 'crosshair';
+    if (isDraggingControlPoint) return 'move';
     const tool = toolsState.activeTool;
     if (tool === 'hand') return 'grab';
     if (tool === 'selection') return 'default';

@@ -18,7 +18,7 @@
     Link,
     Unlink,
   } from 'lucide-svelte';
-  import type { ArrowElement, LineElement } from '../types/element';
+  import type { ArrowElement, LineElement, ArrowLineType } from '../types/element';
 
   const strokeColors = ['#1e293b', '#dc2626', '#16a34a', '#2563eb', '#d97706', '#000000'];
   const bgColors = ['transparent', '#fee2e2', '#dcfce7', '#dbeafe', '#fef3c7', '#e0f2fe'];
@@ -212,6 +212,44 @@
         {/each}
       </div>
     </div>
+
+    <!-- Arrow Line Type (only for arrow type) -->
+    {#if hasArrowSelected}
+      <div class="mb-3">
+        <div class="text-gray-500 mb-1.5">Arrow type</div>
+        <div class="flex gap-1">
+          {#each ['sharp', 'curved', 'elbow'] as lineType}
+            {@const isSelected = (selectedElement as ArrowElement)?.lineType === lineType}
+            <button
+              class="flex-1 h-7 rounded border flex items-center justify-center transition-all"
+              class:bg-sky-100={isSelected}
+              class:border-sky-500={isSelected}
+              class:border-gray-200={!isSelected}
+              class:hover:bg-gray-50={!isSelected}
+              onclick={() => updateSelected({ lineType: lineType as ArrowLineType, controlPoints: [] })}
+              title={lineType.charAt(0).toUpperCase() + lineType.slice(1)}
+            >
+              {#if lineType === 'sharp'}
+                <!-- Straight diagonal line icon -->
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <line x1="3" y1="13" x2="13" y2="3" />
+                </svg>
+              {:else if lineType === 'curved'}
+                <!-- Curved/wavy line icon -->
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M3 13 Q8 3 13 8" />
+                </svg>
+              {:else if lineType === 'elbow'}
+                <!-- Right-angle connector icon -->
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M3 13 L3 8 L13 8 L13 3" />
+                </svg>
+              {/if}
+            </button>
+          {/each}
+        </div>
+      </div>
+    {/if}
 
     <!-- Arrowheads (only for arrow type) -->
     {#if hasArrowSelected}

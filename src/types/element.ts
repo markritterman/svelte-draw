@@ -7,6 +7,8 @@ export type ElementType =
   | 'freedraw'
   | 'text';
 
+export type ArrowLineType = 'sharp' | 'curved' | 'elbow';
+
 export interface Point {
   x: number;
   y: number;
@@ -17,6 +19,7 @@ export interface Binding {
   elementId: string;
   focus: number; // -1 to 1, position along the edge
   gap: number;   // distance from shape edge
+  fixedPoint?: { x: number; y: number }; // normalized 0-1 position on shape perimeter for fixed binding
 }
 
 export interface BaseElement {
@@ -63,6 +66,8 @@ export interface ArrowElement extends BaseElement {
   endArrowhead: 'arrow' | 'bar' | 'dot' | null;
   startBinding: Binding | null;
   endBinding: Binding | null;
+  lineType: ArrowLineType; // arrow routing style: sharp (straight), curved (bezier), elbow (orthogonal)
+  controlPoints?: Point[]; // control points for curved/elbow arrows (relative to element origin)
 }
 
 export interface FreedrawElement extends BaseElement {
@@ -139,7 +144,12 @@ export function createElement(
         points: [{ x: 0, y: 0 }],
         startBinding: null,
         endBinding: null,
-        ...(type === 'arrow' && { startArrowhead: null, endArrowhead: 'arrow' }),
+        ...(type === 'arrow' && {
+          startArrowhead: null,
+          endArrowhead: 'arrow',
+          lineType: 'sharp' as ArrowLineType,
+          controlPoints: [],
+        }),
       } as LineElement | ArrowElement;
 
     case 'freedraw':
