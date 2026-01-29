@@ -18,6 +18,7 @@
   let isDragging = $state(false);
   let isSelecting = $state(false);
   let isDraggingEndpoint = $state<'start' | 'end' | null>(null);
+  let endpointDragInfo = $state<{ currentPos: Point; otherEnd: Point } | null>(null);
   let lastMouse = $state({ x: 0, y: 0 });
   let dragStart = $state({ x: 0, y: 0 });
   let selectionBox = $state<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -62,6 +63,7 @@
     currentElement;
     startSnapTarget;
     endSnapTarget;
+    endpointDragInfo;
     showHitAreas;
     selectionBox;
     draw();
@@ -97,12 +99,12 @@
       renderElement(rc, ctx, currentElement);
     }
 
-    // Draw snap indicators
-    if (startSnapTarget) {
-      drawSnapIndicator(startSnapTarget.element);
+    // Draw snap indicators (glue lines)
+    if (startSnapTarget && endpointDragInfo) {
+      drawSnapIndicator(startSnapTarget, endpointDragInfo.currentPos, endpointDragInfo.otherEnd);
     }
-    if (endSnapTarget) {
-      drawSnapIndicator(endSnapTarget.element);
+    if (endSnapTarget && endpointDragInfo) {
+      drawSnapIndicator(endSnapTarget, endpointDragInfo.currentPos, endpointDragInfo.otherEnd);
     }
 
     // Draw hit areas for debugging
@@ -165,21 +167,30 @@
     ctx.fill();
   }
 
-  function drawSnapIndicator(element: DrawElement) {
-    const cx = element.x + element.width / 2;
-    const cy = element.y + element.height / 2;
+  function drawSnapIndicator(target: { element: DrawElement; binding: Binding }, fromPoint: Point, otherEnd: Point) {
+    // Calculate where the snap point will be on the shape edge
+    const snapPoint = getBindingPoint(target.element, otherEnd, target.binding.gap);
 
-    // Draw highlight around element
+    // Draw glue line from cursor to snap point
     ctx.strokeStyle = '#0ea5e9';
     ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
-    ctx.strokeRect(element.x - 4, element.y - 4, element.width + 8, element.height + 8);
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(fromPoint.x, fromPoint.y);
+    ctx.lineTo(snapPoint.x, snapPoint.y);
+    ctx.stroke();
     ctx.setLineDash([]);
 
-    // Draw center point
+    // Draw snap point indicator (where it will land)
     ctx.fillStyle = '#0ea5e9';
     ctx.beginPath();
-    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.arc(snapPoint.x, snapPoint.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw white inner circle
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(snapPoint.x, snapPoint.y, 3, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -308,6 +319,35 @@
           const lineEl = el as any;
           const points = [...lineEl.points];
 
+          // Build exclude set (the arrow itself and any element bound to the other end)
+          const excludeIds = new Set<string>([id]);
+          if (isDraggingEndpoint === 'start' && lineEl.endBinding) {
+            excludeIds.add(lineEl.endBinding.elementId);
+          } else if (isDraggingEndpoint === 'end' && lineEl.startBinding) {
+            excludeIds.add(lineEl.startBinding.elementId);
+          }
+
+          // Check for snap target (for indicator only, don't snap yet)
+          const snapTarget = findBindingTarget(point, elementsState.elements, excludeIds);
+
+          // Calculate the other end position for snap point calculation
+          const otherEnd = isDraggingEndpoint === 'start'
+            ? { x: el.x + points[points.length - 1].x, y: el.y + points[points.length - 1].y }
+            : { x: el.x + points[0].x, y: el.y + points[0].y };
+
+          // Update snap indicator state (preview only)
+          if (isDraggingEndpoint === 'start') {
+            startSnapTarget = snapTarget;
+            endSnapTarget = null;
+          } else {
+            startSnapTarget = null;
+            endSnapTarget = snapTarget;
+          }
+
+          // Track drag info for drawing the glue line
+          endpointDragInfo = { currentPos: point, otherEnd };
+
+          // Use raw point during drag (no snapping)
           if (isDraggingEndpoint === 'start') {
             // Moving start point: adjust element position and recalculate relative points
             const oldStart = { x: el.x + points[0].x, y: el.y + points[0].y };
@@ -327,7 +367,7 @@
               x: newStart.x,
               y: newStart.y,
               points,
-              startBinding: null, // Clear binding when manually moved
+              startBinding: null, // Clear binding during drag
             });
           } else if (isDraggingEndpoint === 'end') {
             // Moving end point: just update the last point relative to origin
@@ -339,7 +379,7 @@
 
             elementsState.update(id, {
               points,
-              endBinding: null, // Clear binding when manually moved
+              endBinding: null, // Clear binding during drag
             });
           }
         }
@@ -441,7 +481,64 @@
   function onMouseUp() {
     isPanning = false;
     isDragging = false;
-    isDraggingEndpoint = null;
+
+    // Finish endpoint drag - apply snap if near a shape
+    if (isDraggingEndpoint) {
+      const snapTarget = isDraggingEndpoint === 'start' ? startSnapTarget : endSnapTarget;
+
+      if (snapTarget) {
+        // Apply the snap on release
+        for (const id of elementsState.selectedIds) {
+          const el = elementsState.getElementById(id);
+          if (el && (el.type === 'line' || el.type === 'arrow')) {
+            const lineEl = el as any;
+            const points = [...lineEl.points];
+
+            // Get the other end for direction calculation
+            const otherEnd = isDraggingEndpoint === 'start'
+              ? { x: el.x + points[points.length - 1].x, y: el.y + points[points.length - 1].y }
+              : { x: el.x, y: el.y };
+
+            const snappedPoint = getBindingPoint(snapTarget.element, otherEnd, snapTarget.binding.gap);
+
+            if (isDraggingEndpoint === 'start') {
+              const dx = snappedPoint.x - el.x;
+              const dy = snappedPoint.y - el.y;
+
+              // Shift all points relative to new origin
+              for (let i = 1; i < points.length; i++) {
+                points[i] = { x: points[i].x - dx, y: points[i].y - dy };
+              }
+              points[0] = { x: 0, y: 0 };
+
+              elementsState.update(id, {
+                x: snappedPoint.x,
+                y: snappedPoint.y,
+                points,
+                startBinding: snapTarget.binding,
+              });
+            } else {
+              const lastIdx = points.length - 1;
+              points[lastIdx] = {
+                x: snappedPoint.x - el.x,
+                y: snappedPoint.y - el.y,
+              };
+
+              elementsState.update(id, {
+                points,
+                endBinding: snapTarget.binding,
+              });
+            }
+          }
+        }
+      }
+
+      isDraggingEndpoint = null;
+      startSnapTarget = null;
+      endSnapTarget = null;
+      endpointDragInfo = null;
+      return;
+    }
 
     // Finish selection box
     if (isSelecting) {

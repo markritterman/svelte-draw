@@ -1,6 +1,6 @@
 import type { DrawElement, Point, Binding } from '../types/element';
 
-const SNAP_DISTANCE = 20; // pixels to snap within
+const SNAP_DISTANCE = 15; // pixels to snap within
 
 // Shapes that can be bound to
 export function isBindableElement(element: DrawElement): boolean {
@@ -155,8 +155,6 @@ export function findBindingTarget(
   }
 
   if (!closest) return null;
-
-  const center = getElementCenter(closest.element);
 
   return {
     element: closest.element,

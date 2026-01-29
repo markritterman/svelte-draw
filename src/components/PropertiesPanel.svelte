@@ -1,12 +1,10 @@
 <script lang="ts">
   import { elementsState } from '../state/elements.svelte';
-  import { toolsState } from '../state/tools.svelte';
   import {
     Minus,
     MoreHorizontal,
     Ellipsis,
     Waves,
-    CornerUpRight,
     ArrowRight,
     ArrowLeft,
     Copy,
