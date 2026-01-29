@@ -30,6 +30,7 @@ export interface BaseElement {
   strokeColor: string;
   backgroundColor: string;
   fillStyle: 'hachure' | 'solid' | 'cross-hatch' | 'none';
+  strokeStyle: 'solid' | 'dashed' | 'dotted';
   strokeWidth: number;
   roughness: number;
   opacity: number;
@@ -93,6 +94,7 @@ export const defaultElementProps = {
   strokeColor: '#1e293b',
   backgroundColor: '#e0f2fe',
   fillStyle: 'hachure' as const,
+  strokeStyle: 'solid' as const,
   strokeWidth: 2,
   roughness: 1,
   opacity: 1,

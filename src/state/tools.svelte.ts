@@ -12,6 +12,7 @@ function createToolsState() {
   let fillStyle = $state(defaultElementProps.fillStyle);
   let strokeWidth = $state(defaultElementProps.strokeWidth);
   let roughness = $state(defaultElementProps.roughness);
+  let roughEnabled = $state(true); // Toggle for rough/clean lines
 
   return {
     get activeTool() { return activeTool; },
@@ -20,6 +21,7 @@ function createToolsState() {
     get fillStyle() { return fillStyle; },
     get strokeWidth() { return strokeWidth; },
     get roughness() { return roughness; },
+    get roughEnabled() { return roughEnabled; },
 
     setTool(tool: Tool) {
       activeTool = tool;
@@ -45,6 +47,10 @@ function createToolsState() {
       roughness = r;
     },
 
+    toggleRough() {
+      roughEnabled = !roughEnabled;
+    },
+
     // Get current style props for new elements
     getStyleProps() {
       return {
@@ -52,7 +58,7 @@ function createToolsState() {
         backgroundColor,
         fillStyle,
         strokeWidth,
-        roughness,
+        roughness: roughEnabled ? roughness : 0,
       };
     },
   };

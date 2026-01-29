@@ -4,6 +4,13 @@ import type { Options } from 'roughjs/bin/core';
 import { getElementBounds } from '../bounds';
 
 export function renderElement(rc: RoughCanvas, ctx: CanvasRenderingContext2D, element: DrawElement) {
+  // Convert strokeStyle to dash array
+  const strokeLineDash = element.strokeStyle === 'dashed'
+    ? [12, 8]
+    : element.strokeStyle === 'dotted'
+      ? [3, 6]
+      : undefined;
+
   const options: Options = {
     seed: element.seed,
     roughness: element.roughness,
@@ -11,6 +18,7 @@ export function renderElement(rc: RoughCanvas, ctx: CanvasRenderingContext2D, el
     strokeWidth: element.strokeWidth,
     fill: element.fillStyle !== 'none' ? element.backgroundColor : undefined,
     fillStyle: element.fillStyle === 'none' ? undefined : element.fillStyle,
+    strokeLineDash,
   };
 
   ctx.globalAlpha = element.opacity;
