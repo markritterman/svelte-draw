@@ -20,7 +20,7 @@ function createElementsState() {
 
     update(id: string, changes: Partial<DrawElement>) {
       elements = elements.map(el =>
-        el.id === id ? { ...el, ...changes } : el
+        el.id === id ? { ...el, ...changes } as DrawElement : el
       );
     },
 

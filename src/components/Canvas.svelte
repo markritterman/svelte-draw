@@ -7,7 +7,7 @@
   import { createElement, type DrawElement, type Point, type Binding } from '../types/element';
   import { renderElement, renderSelectionBox, renderControlPointHandles, getControlPointPosition, getElbowControlPoints } from '../lib/render/elements';
   import type { ArrowElement } from '../types/element';
-  import { findBindingTarget, findBindingTargetWithFixed, getBindingPoint, getFixedBindingPoint, updateBoundPoints } from '../lib/binding';
+  import { findBindingTarget, findBindingTargetWithFixed, getBindingPoint, updateBoundPoints } from '../lib/binding';
   import { isPointInBounds, isPointNearLine, getElementBounds } from '../lib/bounds';
 
   let canvasEl: HTMLCanvasElement;
